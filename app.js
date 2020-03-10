@@ -3,15 +3,16 @@ const express = require('express');
 const path = require('path');
 const logger = require('morgan');
 
-const ReservationServce = require('./services/ReservationService');
+const ReservationService = require('./services/ReservationService');
 const WitService = require('./services/WitService');
 
 const indexRouter = require('./routes/index');
 const slackRouter = require('./routes/bots/slack');
+
 module.exports = (config) => {
   const app = express();
 
-  const reservationService = new ReservationServce(config.reservations);
+  const reservationService = new ReservationService(config.reservations);
   const witService = new WitService(config.wit.token);
 
   // view engine setup
@@ -33,12 +34,6 @@ module.exports = (config) => {
     }
     return next();
   });
-
-  // app.use(async (req, res, next) => {
-  //   const entities = await witService.query('Hi I am Daniel. I want to reserve a table for two, tomorrow at 3pm.');
-  //   console.log(entities);
-  //   return next();
-  // });
 
   app.use('/', indexRouter({ reservationService, config }));
 
