@@ -3,10 +3,14 @@ const { createEventAdapter } = require('@slack/events-api');
 const { WebClient } = require('@slack/web-api');
 const moment = require('moment');
 
+function createSessionId(channel, user, ts) {
+  return `${channel}-${user}-${ts}`;
+}
+
 const router = express.Router();
 
 module.exports = (params) => {
-  const { config, witService, reservationService } = params;
+  const { config, witService, reservationService, sessionService } = params;
 
   const slackEvents = createEventAdapter(config.slack.signingSecret);
   const slackWebClient = new WebClient(config.slack.token);
@@ -14,6 +18,21 @@ module.exports = (params) => {
   router.use('/events', slackEvents.requestListener());
 
   async function handleMention(event) {
+    const sessionId = createSessionId(event.channel, event.user, event.thread_ts || event.ts);
+    let session = sessionService.get(sessionId);
+
+    if(!session) {
+      session = sessionService.create(sessionId);
+
+      session.context = {
+        slack: {
+          channel: event.channel,
+          user: event.user,
+          thread_ts: event.thread_ts || event.ts,
+        },
+      };
+    }
+    
     const mention = /<@[A-Z0-9]+>/;
     const eventText = event.text.replace(mention, '').trim();
 
@@ -37,7 +56,8 @@ module.exports = (params) => {
 
     return slackWebClient.chat.postMessage({
       text,
-      channel: event.channel,
+      channel: session.context.slack.channel,
+      thread_ts: session.context.slack.thread_ts,
       username: 'reservationapp',
     });
   }
