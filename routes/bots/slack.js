@@ -17,22 +17,7 @@ module.exports = (params) => {
 
   router.use('/events', slackEvents.requestListener());
 
-  async function handleMention(event) {
-    const sessionId = createSessionId(event.channel, event.user, event.thread_ts || event.ts);
-    let session = sessionService.get(sessionId);
-
-    if(!session) {
-      session = sessionService.create(sessionId);
-
-      session.context = {
-        slack: {
-          channel: event.channel,
-          user: event.user,
-          thread_ts: event.thread_ts || event.ts,
-        },
-      };
-    }
-    
+  async function processEvent(session, event) {
     const mention = /<@[A-Z0-9]+>/;
     const eventText = event.text.replace(mention, '').trim();
 
@@ -62,7 +47,36 @@ module.exports = (params) => {
     });
   }
 
+
+
+  async function handleMention(event) {
+    const sessionId = createSessionId(event.channel, event.user, event.thread_ts || event.ts);
+    let session = sessionService.get(sessionId);
+
+    if(!session) {
+      session = sessionService.create(sessionId);
+
+      session.context = {
+        slack: {
+          channel: event.channel,
+          user: event.user,
+          thread_ts: event.thread_ts || event.ts,
+        },
+      };
+    }
+    return processEvent(session, event);
+  }
+
+  async function handleMessage(event) {
+    const sessionId = createSessionId(event.channel, event.user, event.thread_ts || event.ts);
+    const session = sessionService.get(sessionId);
+
+    return !session ? false : processEvent(session,event);
+  }
+    
+  
   slackEvents.on('app_mention', handleMention);
+  slackEvents.on('message', handleMessage);
 
   return router;
 };
