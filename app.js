@@ -9,6 +9,7 @@ const SessionService = require('./services/SessionService')
 
 const indexRouter = require('./routes/index');
 const slackRouter = require('./routes/bots/slack');
+const alexaRouter = require('./routes/bots/alexa');
 
 module.exports = (config) => {
   const app = express();
@@ -24,6 +25,7 @@ module.exports = (config) => {
   app.use(logger('dev'));
 
   app.use('/bots/slack', slackRouter({ reservationService, witService, sessionService, config }));
+  app.use('/bots/alexa', alexaRouter({ reservationService, witService, sessionService, config }));
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
