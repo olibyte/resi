@@ -3,11 +3,14 @@ const { createEventAdapter } = require('@slack/events-api');
 const { WebClient } = require('@slack/web-api');
 const moment = require('moment');
 
+const ConversationService = require('../../services/ConversationService');
+
+
+const router = express.Router();
+
 function createSessionId(channel, user, ts) {
   return `${channel}-${user}-${ts}`;
 }
-
-const router = express.Router();
 
 module.exports = (params) => {
   const { config, witService, reservationService, sessionService } = params;
@@ -21,22 +24,25 @@ module.exports = (params) => {
     const mention = /<@[A-Z0-9]+>/;
     const eventText = event.text.replace(mention, '').trim();
 
+    const context = await ConversationService.run(witService, eventText, session.context);
+    const { conversation } = context;
+    const { entities } = conversation;
+    console.log(entities);
+
     let text = '';
 
-    if (!eventText) {
-      text = 'Hey!';
+    if (!conversation.complete) {
+      text = conversation.followUp;
     } else {
-      const entities = await witService.query(eventText);
       const { intent, customerName, reservationDateTime, numberOfGuests } = entities;
 
-      if (!intent || intent !== 'reservation' || !customerName || !numberOfGuests || !reservationDateTime ) {
-        text = 'Sorry - could you rephrase that?';
-        console.log(entities);
-      } else {
-        const reservationResult = await reservationService
-          .tryReservation(moment(reservationDateTime).unix(), numberOfGuests, customerName);
-        text = reservationResult.success || reservationResult.error;
-      }
+      const reservationResult = await reservationService
+        .tryReservation(moment(reservationDateTime).unix(), numberOfGuests, customerName);
+      text = reservationResult.success || reservationResult.error;
+    }
+
+    if (conversation.exit || conversation.complete) {
+      session.context.conversation = {};
     }
 
     return slackWebClient.chat.postMessage({
@@ -47,13 +53,11 @@ module.exports = (params) => {
     });
   }
 
-
-
   async function handleMention(event) {
     const sessionId = createSessionId(event.channel, event.user, event.thread_ts || event.ts);
     let session = sessionService.get(sessionId);
 
-    if(!session) {
+    if (!session) {
       session = sessionService.create(sessionId);
 
       session.context = {
@@ -71,10 +75,10 @@ module.exports = (params) => {
     const sessionId = createSessionId(event.channel, event.user, event.thread_ts || event.ts);
     const session = sessionService.get(sessionId);
 
-    return !session ? false : processEvent(session,event);
+    return !session ? false : processEvent(session, event);
   }
-    
-  
+
+
   slackEvents.on('app_mention', handleMention);
   slackEvents.on('message', handleMessage);
 

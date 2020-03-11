@@ -8,11 +8,28 @@ class ConversationService {
                 exit: false,
             };
         }
+
+        if(!text) {
+            context.conversation.followUp = 'Ahoy!';
+            return context;
+        }
+
         const entities = await witService.query(text);
         context.conversation.entities = { ...context.conversation.entities, ...entities };
 
+        if (context.conversation.entities.bye) {
+            context.conversation.followUp = 'Ok, bye!';
+            context.conversation.exit = true;
+            return context;
+        }
+
         if (context.conversation.entities.intent === 'reservation') {
             return ConversationService.intentReservation(context);
+        }
+
+        if (context.conversation.entities.greetings) {
+            context.conversation.followUp = 'Hi there, what can I do for you?'
+            return context;
         }
         context.conversation.followUp = 'Could you rephrase that?';
         return context;
